@@ -3,75 +3,79 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Text Drop</title>
+<title>Text Drop | Minimal Notes</title>
 <style>
+  :root {
+    --bg: #0f0f0f;
+    --panel: #1a1a1a;
+    --text: #d4d4d4;
+    --dim: #666;
+    --accent: #4a9eff;
+    --border: #282828;
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
-    background: #111;
-    color: #e0e0e0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
     height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   header {
-    padding: 12px 20px;
+    padding: 16px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid #222;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
   header h1 {
-    font-size: 14px;
-    font-weight: 500;
-    color: #666;
-    letter-spacing: 0.5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
   }
 
   .actions {
     display: flex;
-    gap: 8px;
+    gap: 10px;
   }
 
   button {
     background: transparent;
-    border: 1px solid #333;
-    color: #888;
-    font-family: inherit;
-    font-size: 12px;
-    padding: 5px 12px;
-    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   button:hover {
-    border-color: #555;
-    color: #ccc;
+    border-color: var(--dim);
+    color: var(--text);
+    background: rgba(255,255,255,0.03);
   }
 
-  .toast {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: #222;
-    color: #aaa;
-    font-size: 12px;
-    padding: 6px 16px;
-    border-radius: 4px;
-    opacity: 0;
-    transition: all 0.2s ease;
-    pointer-events: none;
-  }
+  button:active { transform: scale(0.96); }
 
-  .toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
+  .status-bar {
+    padding: 8px 24px;
+    font-size: 10px;
+    color: var(--dim);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    background: var(--bg);
   }
 
   textarea {
@@ -79,25 +83,45 @@
     background: transparent;
     border: none;
     outline: none;
-    color: #d4d4d4;
-    font-family: inherit;
-    font-size: 15px;
-    line-height: 1.7;
-    padding: 24px 20px;
+    color: var(--text);
+    font-family: "JetBrains Mono", "Fira Code", monospace; /* Better for tabs/alignment */
+    font-size: 16px;
+    line-height: 1.8;
+    padding: 40px 24px;
     resize: none;
     width: 100%;
-    caret-color: #888;
+    caret-color: var(--accent);
   }
 
-  textarea::placeholder {
-    color: #333;
+  textarea::placeholder { color: #333; }
+
+  .toast {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 12px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
   }
 
-  @media (min-width: 700px) {
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @media (min-width: 800px) {
     textarea {
-      max-width: 680px;
+      max-width: 760px;
       margin: 0 auto;
-      padding: 32px 0;
+      padding: 60px 0;
     }
   }
 </style>
@@ -105,45 +129,89 @@
 <body>
 
 <header>
-  <h1>TEXT DROP</h1>
+  <h1>Text Drop</h1>
   <div class="actions">
-    <button onclick="copyAll()">Copy all</button>
-    <button onclick="clearAll()">Clear</button>
+    <button onclick="copyAll()">Copy</button>
+    <button onclick="downloadNote()">Save .txt</button>
+    <button onclick="clearAll()" style="color: #ff5f56;">Clear</button>
   </div>
 </header>
 
-<textarea id="editor" placeholder="Start typing..." spellcheck="false" autofocus></textarea>
+<textarea id="editor" placeholder="Start typing... Your notes are auto-saved locally." spellcheck="false" autofocus></textarea>
+
+<div class="status-bar">
+  <span id="charCount">0 characters</span>
+  <span id="wordCount">0 words</span>
+</div>
 
 <div class="toast" id="toast"></div>
 
 <script>
   const editor = document.getElementById('editor');
   const toast = document.getElementById('toast');
+  const charCount = document.getElementById('charCount');
+  const wordCount = document.getElementById('wordCount');
+
+  // 1. Load data from LocalStorage
+  window.onload = () => {
+    const savedText = localStorage.getItem('textdrop_content');
+    if (savedText) {
+      editor.value = savedText;
+      updateStats();
+    }
+  };
+
+  // 2. Auto-save on every keystroke
+  editor.addEventListener('input', () => {
+    localStorage.setItem('textdrop_content', editor.value);
+    updateStats();
+  });
+
+  function updateStats() {
+    const text = editor.value.trim();
+    charCount.textContent = `${editor.value.length} characters`;
+    wordCount.textContent = `${text ? text.split(/\s+/).length : 0} words`;
+  }
 
   function showToast(msg) {
     toast.textContent = msg;
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 1200);
+    setTimeout(() => toast.classList.remove('show'), 2000);
   }
 
   function copyAll() {
     if (!editor.value) return;
-    navigator.clipboard.writeText(editor.value).then(() => showToast('Copied'));
+    navigator.clipboard.writeText(editor.value).then(() => showToast('Copied to clipboard'));
   }
 
   function clearAll() {
-    editor.value = '';
-    editor.focus();
+    if (confirm("Delete everything? This cannot be undone.")) {
+      editor.value = '';
+      localStorage.removeItem('textdrop_content');
+      updateStats();
+      editor.focus();
+    }
   }
 
-  // Tab key inserts a tab instead of moving focus
+  function downloadNote() {
+    const text = editor.value;
+    if (!text) return;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const anchor = document.createElement('a');
+    anchor.download = `note-${new Date().toISOString().slice(0,10)}.txt`;
+    anchor.href = window.URL.createObjectURL(blob);
+    anchor.click();
+    window.URL.revokeObjectURL(anchor.href);
+  }
+
+  // Improved Tab Handling (Maintains indentation)
   editor.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
       e.preventDefault();
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
-      editor.value = editor.value.substring(0, start) + '\t' + editor.value.substring(end);
-      editor.selectionStart = editor.selectionEnd = start + 1;
+      editor.value = editor.value.substring(0, start) + "    " + editor.value.substring(end);
+      editor.selectionStart = editor.selectionEnd = start + 4;
     }
   });
 </script>
